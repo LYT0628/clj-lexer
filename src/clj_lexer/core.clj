@@ -1,0 +1,76 @@
+(ns clj-lexer.core
+  (:import [java.util.regex Matcher Pattern ])
+  (:require [clojure.string :as str ]))
+
+
+(defprotocol MatchableSeq
+  (forward [this])
+  (match [this pattern])
+  (next-match [this]))
+
+ 
+(defrecord LexBuffer [content lexeme-begin forward])
+
+(extend-type LexBuffer
+  MatchableSeq
+  (forward [this]
+    (if (>= (count (:content this)) (:forward this) )
+      (LexBuffer. (:content this)
+                    (:lexeme-begin this)
+                    (+ (:forward this) 1))))
+  (match [this pattern]
+    (let [m (.matcher (Pattern/compile pattern)
+                      (subs (:content this)
+                            (:lexeme-begin this)
+                            (:forward this)))]
+      (if (.find m)
+        (.group m))))
+  (next-match [this]
+    (if (>=  (count (:content this)) (+ (:forward this) 1) )
+      (LexBuffer. (:content this)
+                  (+ (:forward this) 1) 
+                  (+ (:forward this) 1)))))
+
+(defn any-match? [buf patterns]
+  (some (fn [pattern] (some? (match buf pattern) )) patterns))
+
+(defn first-match [buf patterns]
+  (some (fn [pattern]  (when-let [result (match buf pattern)]
+                         {:regex pattern :lexeme result}) ) patterns))
+
+
+
+
+
+(defprotocol ILexer
+  (token [this]))
+
+
+(defrecord Lexer [input buffer regex-callback-map])
+
+(extend-type Lexer
+  ILexer
+  (token [this]
+   (let [buf  (:buffer this)
+         patterns (keys (:regex-callback-map this))]
+     (if-not (nil? buf)
+       (if (any-match? buf
+                       patterns)
+         (let [cb (get (:regex-callback-map this)
+                       (:regex (first-match buf patterns)))]
+           
+           (lazy-seq (cons (cb (:lexeme (first-match buf patterns)))
+                           (token (Lexer. (:input this)
+                                          (next-match buf)
+                                          (:regex-callback-map this))))))
+                  (lazy-seq
+          (token (Lexer. (:input this)
+                         (forward buf)
+                         (:regex-callback-map this)))))
+     ))))
+
+
+
+(defn create-lexer [input regex-callback-map]
+  (Lexer. input (LexBuffer. input 0 0) regex-callback-map ) )
+
