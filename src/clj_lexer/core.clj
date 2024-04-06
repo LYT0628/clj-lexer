@@ -4,9 +4,10 @@
 
 
 (defprotocol MatchableSeq
-  (forward [this])
-  (match [this pattern])
-  (next-match [this]))
+  "A String Seq that contains several mattchable tokens."
+  (forward [this] "Move pointer go forward a character.") 
+  (match [this pattern] "Return a token if matched.Otherwise return nil.")
+  (next-match [this] "Inform the Seq a token was matched to match next token.") )
 
  
 (defrecord LexBuffer [content lexeme-begin forward])
@@ -31,26 +32,32 @@
                   (+ (:forward this) 1) 
                   (+ (:forward this) 1)))))
 
+
+
+
 (defn any-match? [buf patterns]
-  (some (fn [pattern] (some? (match buf pattern) )) patterns))
+  "Return true if the given pattern list has regular expression that can match current  token in buf."
+  (some (fn [pattern]
+          (some? (match buf pattern)))
+        patterns))
 
 (defn first-match [buf patterns]
+  "Return the first matched regular expression if any."
   (some (fn [pattern]  (when-let [result (match buf pattern)]
                          {:regex pattern :lexeme result}) ) patterns))
 
 
 
-
-
 (defprotocol ILexer
-  (token [this]))
+  "A Lexer can scan a String Sequence."
+  (tokens [this] "Return a lazy list of matched tokens."))
 
 
 (defrecord Lexer [input buffer regex-callback-map])
 
 (extend-type Lexer
   ILexer
-  (token [this]
+  (tokens [this]
    (let [buf  (:buffer this)
          patterns (keys (:regex-callback-map this))]
      (if-not (nil? buf)
@@ -60,11 +67,11 @@
                        (:regex (first-match buf patterns)))]
            
            (lazy-seq (cons (cb (:lexeme (first-match buf patterns)))
-                           (token (Lexer. (:input this)
+                           (tokens (Lexer. (:input this)
                                           (next-match buf)
                                           (:regex-callback-map this))))))
                   (lazy-seq
-          (token (Lexer. (:input this)
+          (tokens (Lexer. (:input this)
                          (forward buf)
                          (:regex-callback-map this)))))
      ))))
