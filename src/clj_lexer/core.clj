@@ -2,82 +2,96 @@
   (:import [java.util.regex Matcher Pattern ])
   (:require [clojure.string :as str ]))
 
+;;; Util
+
+(defn longest-string [str-list]
+  (reduce (fn [max-str str]
+            (if (> (count str) (count max-str))
+              str
+              max-str))
+          nil str-list))
+
+;;; Protocol
+
 
 (defprotocol MatchableSeq
   "A String Seq that contains several mattchable tokens."
-  (forward [this] "Move pointer go forward a character.") 
-  (match [this pattern] "Return a token if matched.Otherwise return nil.")
-  (next-match [this] "Inform the Seq a token was matched to match next token.") )
+  (result [this] "Return a nre MatchableSeq if matched.Otherwise return nil.")
+  (pattern [this] "Return the pattern that matches the token.")
+  (match [this pattern] "Inform the Seq a token was matched to match next token.")
+  (rest-seq [this] "Return a rest string that still are not matched."))
 
  
-(defrecord LexBuffer [content lexeme-begin forward])
-
-(extend-type LexBuffer
-  MatchableSeq
-  (forward [this]
-    (if (>= (count (:content this)) (:forward this) )
-      (LexBuffer. (:content this)
-                    (:lexeme-begin this)
-                    (+ (:forward this) 1))))
-  (match [this pattern]
-    (let [m (.matcher (Pattern/compile pattern)
-                      (subs (:content this)
-                            (:lexeme-begin this)
-                            (:forward this)))]
-      (if (.find m)
-        (.group m))))
-  (next-match [this]
-    (if (>=  (count (:content this)) (+ (:forward this) 1) )
-      (LexBuffer. (:content this)
-                  (+ (:forward this) 1) 
-                  (+ (:forward this) 1)))))
-
-
-
-
-(defn any-match? [buf patterns]
-  "Return true if the given pattern list has regular expression that can match current  token in buf."
-  (some (fn [pattern]
-          (some? (match buf pattern)))
-        patterns))
-
-(defn first-match [buf patterns]
-  "Return the first matched regular expression if any."
-  (some (fn [pattern]  (when-let [result (match buf pattern)]
-                         {:regex pattern :lexeme result}) ) patterns))
-
-
-
 (defprotocol ILexer
   "A Lexer can scan a String Sequence."
   (tokens [this] "Return a lazy list of matched tokens."))
 
+
+;;; Buffer
+
+(defrecord LexBuffer [content lexeme-begin lexeme regex])
+
+(extend-type LexBuffer
+  MatchableSeq
+  (match [this regex]
+    (let [m (.matcher (Pattern/compile regex)
+                      (subs (:content this)
+                            (:lexeme-begin this)))]
+      (if (.lookingAt m)
+        (LexBuffer. (:content this)
+                    (+ (.end m) (:lexeme-begin this)) 
+                    (.group m)
+                    regex)
+        (LexBuffer. (:content this)
+                    (:lexeme-begin this)
+                    nil
+                    nil))))
+  (result [this] (:lexeme this))
+  (pattern [this] (:regex this))
+  (rest-seq [this]
+    (subs (:content this)
+          (:lexeme-begin this))))
+
+
+
+;;; Lexer
+
+(defn longest-match [buf patterns]
+  "Return the longest matched regular expression if any."
+  (->> patterns
+       (map #(match buf %))
+       (filter #(some? (result %)))
+       (longest-string)))
 
 (defrecord Lexer [input buffer regex-callback-map])
 
 (extend-type Lexer
   ILexer
   (tokens [this]
-   (let [buf  (:buffer this)
-         patterns (keys (:regex-callback-map this))]
-     (if-not (nil? buf)
-       (if (any-match? buf
-                       patterns)
-         (let [cb (get (:regex-callback-map this)
-                       (:regex (first-match buf patterns)))]
-           
-           (lazy-seq (cons (cb (:lexeme (first-match buf patterns)))
-                           (tokens (Lexer. (:input this)
-                                          (next-match buf)
-                                          (:regex-callback-map this))))))
-                  (lazy-seq
-          (tokens (Lexer. (:input this)
-                         (forward buf)
-                         (:regex-callback-map this)))))
-     ))))
+   (when-let [buf (:buffer this)]
+     (let [cb-map (:regex-callback-map this)
+           patterns (keys cb-map)]
+       (if-let [cb (get cb-map (pattern buf))]
+         (lazy-seq (cons (cb (result buf))
+                         (tokens (Lexer. (:input this)
+                                         (longest-match buf patterns)
+                                         cb-map))))
+         ;; first match
+         (lazy-seq (tokens (Lexer. (:input this)
+                                   (longest-match buf patterns)
+                                   cb-map))))))))
+
+
+  (defn create-lexer [input regex-callback-map]
+    (Lexer. input
+            (LexBuffer. input 0 nil nil)
+            regex-callback-map ))
+
+
+(def l (Lexer. "A A A"
+        (LexBuffer. "A A A A" 0 nil nil)
+        {"A" (fn [lexeme] lexeme)} ))
 
 
 
-(defn create-lexer [input regex-callback-map]
-  (Lexer. input (LexBuffer. input 0 0) regex-callback-map ) )
-
+b
