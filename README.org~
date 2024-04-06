@@ -1,5 +1,5 @@
-# clojure-lexer
-clojure-lexer is simple Lexer basedon regular expression.
+* clojure-lexer
+[[github.com/LYT0628/clj-lexer][clj-lexer]] is simple Lexer based on regular expression.
 
 ## Usage
 

@@ -1,0 +1,21 @@
+* clojure-lexer
+
+[[github.com/LYT0628/clj-lexer][clj-lexer]] is a simple Lexer based on regular expression.
+It can work with [[github.com/LYT0628/clj-parser][clj-parser]] to combine a front-end of programing language combinator.
+
+
+Features
+- clj-lexer just depends on the jdk.
+- clj-lexer provide the basic lexer part, like scan text. you can provide any your own Token with a arg lexeme.
+- clj-lexer is simple, and friendly to use.
+
+
+* Usage
+
+see: [[./src/clj-parser/clj_lexer/examples/clj][examples]].
+
+
+
+* License
+
+[[github.com/LYT0628/clj-lexer][clj-lexer]]is distributed under [[https://www.gnu.org/licenses/gpl.html][the latest GPL license]].

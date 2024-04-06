@@ -1,0 +1,3 @@
+(ns clj-lexer.exmples
+  (:require [clj-lexer core]))
+

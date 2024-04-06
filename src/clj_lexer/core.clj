@@ -87,11 +87,3 @@
             (LexBuffer. input 0 nil nil)
             regex-callback-map ))
 
-
-(def l (Lexer. "A A A"
-        (LexBuffer. "A A A A" 0 nil nil)
-        {"A" (fn [lexeme] lexeme)} ))
-
-
-
-b
